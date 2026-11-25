@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>WakeFace</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="WakeFace">
+<meta name="theme-color" content="#0b0d1a">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  /* Three rooms: setup (dusk), nightstand (black, OLED-off), ringing (white = selfie flash). */
+  :root {
+    --night: #05060c;
+    --dusk: #0b0d1a;
+    --panel: #151a30;
+    --line: #262d4d;
+    --ink: #eef0fb;
+    --muted: #8d93b5;
+    --sun: #ff8a3d;
+    --sun-ink: #1d0f04;
+    --go: #22c55e;
+    --flash: #ffffff;
+    --flash-ink: #111322;
+    --display: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif;
+    --body: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--dusk); color: var(--ink); font: 16px/1.45 var(--body);
+    -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
+    overscroll-behavior: none;
+  }
+  .screen {
+    min-height: 100%; display: flex; flex-direction: column;
+    padding: calc(env(safe-area-inset-top, 0px) + 20px) max(18px, env(safe-area-inset-right, 0px))
+             calc(env(safe-area-inset-bottom, 0px) + 20px) max(18px, env(safe-area-inset-left, 0px));
+  }
+  button { font: inherit; cursor: pointer; border: 0; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+
+  /* ---------- setup ---------- */
+  #setup { gap: 22px; max-width: 520px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { width: 44px; height: 44px; border-radius: 11px; }
+  .brand h1 { font: 700 26px/1 var(--display); margin: 0; letter-spacing: -0.01em; }
+  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+  .timebox {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 22px;
+    padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .timebox label { color: var(--muted); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+  #time {
+    font: 700 clamp(40px, 13vw, 60px)/1.1 var(--display); color: var(--ink); background: transparent; border: 0;
+    text-align: center; width: 100%; font-variant-numeric: tabular-nums;
+  }
+  #time::-webkit-date-and-time-value { text-align: center; }
+  .rows { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row label { flex: 1; min-width: 0; }
+  .row select, .row input[type=text] {
+    background: var(--dusk); color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 10px; font: inherit; max-width: 55%;
+  }
+  .row input[type=checkbox] { width: 24px; height: 24px; accent-color: var(--sun); }
+  .primary {
+    background: var(--sun); color: var(--sun-ink); font-weight: 700; font-size: 19px;
+    padding: 18px; border-radius: 18px; width: 100%;
+  }
+  .primary:disabled { opacity: 0.6; }
+  .ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); padding: 14px; border-radius: 16px; width: 100%; }
+  .tips { color: var(--muted); font-size: 14px; margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+  .tips b { color: var(--ink); font-weight: 600; }
+  .notice { background: #3a2410; color: #ffd3b0; border-radius: 14px; padding: 12px 14px; font-size: 14px; }
+  #setupStatus:empty { display: none; }
+
+  /* ---------- nightstand ---------- */
+  #armed { background: var(--night); justify-content: center; align-items: center; text-align: center; gap: 10px; }
+  #armed .clock { white-space: nowrap; font: 600 min(19vw, 120px)/1 var(--display); color: #3b4060; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  #armed .next { color: #4e5578; font-size: 17px; }
+  #armed .warn { color: #6a4a2c; font-size: 14px; max-width: 320px; margin-top: 18px; }
+  #disarm { margin-top: 28px; background: transparent; color: #4e5578; border: 1px solid #1c2033; padding: 12px 22px; border-radius: 999px; }
+
+  /* ---------- ringing: the whole screen is the selfie flash ---------- */
+  #ringing { background: var(--flash); color: var(--flash-ink); align-items: center; text-align: center; gap: 16px; justify-content: center; }
+  #ringing .clock { font: 800 68px/1 var(--display); font-variant-numeric: tabular-nums; }
+  #ringLabel { font-size: 19px; color: #50546b; margin-top: -6px; }
+  .cam { position: relative; width: min(78vw, 330px); aspect-ratio: 1; max-width: 100%; }
+  .cam video { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; transform: scaleX(-1); background: #eceef5; }
+  .cam svg { position: absolute; inset: -10px; width: calc(100% + 20px); height: calc(100% + 20px); transform: rotate(-90deg); }
+  .cam circle { fill: none; stroke-width: 9; }
+  .cam .track { stroke: #e7e9f1; }
+  .cam .bar { stroke: var(--go); stroke-linecap: round; transition: stroke-dashoffset 0.15s linear; }
+  #faceStatus { font: 700 22px/1.25 var(--display); min-height: 56px; display: flex; align-items: center; }
+  .vol { width: min(80vw, 330px); display: grid; gap: 6px; }
+  .vol .meter { height: 8px; border-radius: 99px; background: #eceef5; overflow: hidden; }
+  .vol .meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f59e0b, #ef4444); }
+  .vol span { font-size: 13px; color: #6b6f86; }
+  #tapToStart { background: var(--flash-ink); color: var(--flash); padding: 18px 26px; border-radius: 18px; font-weight: 700; font-size: 19px; }
+  #fallback { display: grid; gap: 10px; justify-items: center; }
+  #fallback .code { font: 800 40px/1 ui-monospace, Menlo, monospace; letter-spacing: 0.12em; }
+  #fallback input { font: 600 24px ui-monospace, Menlo, monospace; text-align: center; width: 200px; padding: 10px; border-radius: 12px; border: 2px solid #d5d8e5; color: var(--flash-ink); background: #fff; }
+
+  @media (prefers-reduced-motion: reduce) { .cam .bar { transition: none; } }
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<main id="setup" class="screen">
+  <div class="brand">
+    <img src="icon-180.png" alt="">
+    <div>
+      <h1>WakeFace</h1>
+      <p>Rings louder and louder until it sees you awake.</p>
+    </div>
+  </div>
+
+  <div class="timebox">
+    <label for="time">Wake me at</label>
+    <input id="time" type="time" value="07:00">
+  </div>
+
+  <div class="rows">
+    <div class="row">
+      <label for="label">Label</label>
+      <input id="label" type="text" value="Wake up" maxlength="40">
+    </div>
+    <div class="row">
+      <label for="ramp">Full volume after</label>
+      <select id="ramp">
+        <option value="15">15 seconds</option>
+        <option value="30">30 seconds</option>
+        <option value="60" selected>1 minute</option>
+        <option value="120">2 minutes</option>
+        <option value="300">5 minutes</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="hold">Hold your face for</label>
+      <select id="hold">
+        <option value="2">2 seconds</option>
+        <option value="3" selected>3 seconds</option>
+        <option value="5">5 seconds</option>
+        <option value="8">8 seconds</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="daily">Repeat every day</label>
+      <input id="daily" type="checkbox" checked>
+    </div>
+  </div>
+
+  <p id="setupStatus" class="notice" role="status"></p>
+
+  <button id="arm" class="primary">Set alarm and go to sleep</button>
+  <button id="test" class="ghost">Test it now (15 s ramp)</button>
+
+  <ul class="tips">
+    <li><b>Add to Home Screen</b> first: Share button → Add to Home Screen, then open WakeFace from there.</li>
+    <li><b>Leave it open on this screen</b> and plug your phone in. Don't lock the phone or switch apps; iPhone pauses web apps that aren't on screen.</li>
+    <li><b>Turn your volume and brightness up</b> before bed. A web app can't change them itself.</li>
+    <li>Set a normal iPhone Clock alarm a few minutes later as a safety net.</li>
+  </ul>
+</main>
+
+<!-- NIGHTSTAND -->
+<main id="armed" class="screen" hidden>
+  <div class="clock" id="nightClock">--:--</div>
+  <div class="next" id="nextText"></div>
+  <div class="warn">Keep this screen open and the phone charging. The screen stays on but dark.</div>
+  <button id="disarm">Turn off alarm</button>
+</main>
+
+<!-- RINGING -->
+<main id="ringing" class="screen" hidden>
+  <div class="clock" id="ringClock">--:--</div>
+  <div id="ringLabel">Wake up</div>
+
+  <div class="cam" id="camWrap">
+    <video id="video" playsinline muted autoplay></video>
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <circle class="track" cx="50" cy="50" r="46"></circle>
+      <circle class="bar" id="bar" cx="50" cy="50" r="46"></circle>
+    </svg>
+  </div>
+
+  <div id="faceStatus" role="status">Starting camera…</div>
+  <button id="tapToStart" hidden>Tap to start the face check</button>
+
+  <div id="fallback" hidden>
+    <div>Camera unavailable. Type this code to stop the alarm:</div>
+    <div class="code" id="code"></div>
+    <input id="codeInput" inputmode="numeric" autocomplete="off" aria-label="Code">
+  </div>
+
+  <div class="vol">
+    <div class="meter"><i id="volBar"></i></div>
+    <span id="volText">Getting louder…</span>
+  </div>
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
